@@ -1,14 +1,25 @@
-# %%
- 
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
 ngram_length = 3
-dstype = 'cc' 
+dstype = 'drug' 
 mname = 'debertaV3'
 
-# %%
+
+# In[2]:
+
+
 from colorama import Fore, Style
+
 import os
 
-# %%
+
+# In[3]:
+
+
 path = f"/home/bhairavi/om/om3/{dstype}/{ngram_length}grams_{mname}/"
 os.makedirs(path, exist_ok=True)
 
@@ -22,16 +33,19 @@ print(Fore.YELLOW,"csv_filePATH--->",file_path)
 filepath_full = path + f'{dstype}_{ngram_length}top5.csv' 
 print(Fore.YELLOW,"QUE_filePATH--->",filepath_full)
  
-
+ 
  
 modelpath = f"/home/bhairavi/om/om5/{dstype}/{mname}_{dstype}"
 
+ 
+
 print(Fore.YELLOW,'modelPATH--->',modelpath)
-
-# %%
-
  
- 
+
+
+# In[4]:
+
+
 import torch  
 
 torch.cuda.empty_cache()  
@@ -56,11 +70,31 @@ import numpy as np
   
 
 
-# %%
+# In[5]:
 
 
 # %%
-df = pd.read_csv('/home/bhairavi/om/om5/cc/cc.csv')
+from datasets import load_dataset
+
+# datas = load_dataset("TaiChan3/drugReviews")
+
+# %%
+train_df = pd.read_csv("/home/bhairavi/om/om5/durg/train.csv")
+test_df = pd.read_csv("/home/bhairavi/om/om5/durg/test.csv")
+
+train_df.shape, test_df.shape
+
+# %%
+train_df['split'] = 'train'
+
+test_df['split'] = 'test'
+ 
+
+# %%
+df = pd.concat([train_df, test_df], ignore_index=True)
+
+# %%
+max_length = 512
 
 # %%
 
@@ -74,33 +108,63 @@ df.sample(5)
 
 
 # %%
-df.drop(columns=["Unnamed: 0"], inplace=True)
-df.columns = (['label','text','target'])
+df.columns
 
+# %%
+df['text'] = df['review']
+
+df['label'] =  df['condition']
+
+
+df = df[['text', 'label', 'split']]
+label_counts = df['label'].value_counts()
+print(label_counts)
 
 # %%
 
+top_100_labels = label_counts.index[:200]
+print(top_100_labels)
+
+
+# %%
+# Filter the DataFrame to retain only rows where 'condition' is in the top 100 frequent labels
+df_filtered = df[df['label'].isin(top_100_labels)]
+ 
+
+
+# %%
+df_filtered
+
+# %%
+df = df_filtered
+# %%
+df['label'].value_counts()
+
+# %%
+threshold = 25
+
+# %%
+label_counts = df['label'].value_counts()
+filtered_df = df[df['label'].map(label_counts) > threshold]
+
+# %%
+filtered_df['label'].value_counts()
+
+# %%
+df= filtered_df
 
 # %%
 
-# %%
 from sklearn.preprocessing import LabelEncoder
-
-# %%
+ 
 le = LabelEncoder()
 df['target'] = le.fit_transform(df['label'])
-
-# %%
-
-
-
-# %%
-
-
-
-# %%
-
-# %%
+ 
+fig = plt.figure(figsize=(8,6)) 
+df.groupby('label').text.count().sort_values().plot.barh(
+    ylim=0,   title= 'NUMBER OF text IN EACH label CATEGORY\n')
+plt.xlabel('Number of ocurrences', fontsize = 10);
+ 
 numlabel = df['target'].nunique()
 numlabel
 
@@ -109,12 +173,12 @@ numlabel
 df.columns
 
 # %%
-numlabel = df['target'].nunique()
-numlabel
 
 
 # %%
-df['text'] = df['text'].apply(lambda x: x[:512])
+numlabel = df['target'].nunique()
+numlabel
+
 
 # %%
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -128,8 +192,31 @@ model = AutoModelForSequenceClassification.from_pretrained(modelpath, num_labels
 # Move the model to the specified device
 model.to(device)
 
+# %%
+# df['token_length'] = df['text'].apply(lambda x: len(tokenizer.tokenize(x)))
 
-max_length = 512
+# # Calculate the maximum token length
+# max_length = df['token_length'].max()
+
+# # Calculate the next maximum token length
+# next_max_token_length = df['token_length'].nlargest(2).iloc[1]
+
+# # Calculate the average token length
+# average_token_length = df['token_length'].mean()
+
+# # Display the results
+# print(f"Maximum token length: {max_length}")
+# print(f"Next maximum token length: {next_max_token_length}")
+# print(f"Average token length: {average_token_length:.2f}")
+
+# %%
+train_df = df[df['split'] == 'train'].drop(columns=['split'])
+
+test_df = df[df['split'] == 'test'].drop(columns=['split'])
+ 
+
+# %%
+
 
 # %%
 
@@ -168,8 +255,7 @@ test_dataset = test_dataset.map(tokenize_and_format, batched=True,batch_size=16)
 
 
 
-
-# %%
+# In[6]:
 
 
 # %%
@@ -228,9 +314,9 @@ trainer = Trainer(
 
 
 
-# %%
+# In[7]:
 
- 
+
 io=   pd.DataFrame(eval_dataset)
  
 batch_size = 4
@@ -287,8 +373,8 @@ io['predicted_label'] = all_predictions
  
 
 
-# %%
- 
+# In[ ]:
+
 
 # Set device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -301,12 +387,16 @@ top_n = 5
      
 
 
-# %%
+# In[ ]:
+
+
 io[f'significant_{ngram_length}grams'] = None
 io[f'{ngram_length}gram_weights'] = None 
 
 def occlusion(text, model, tokenizer, label, ngram_length, device):
- 
+    """
+    Perform occlusion on the text and return n-gram importances based on the specified n-gram length.
+    """
     inputs = tokenizer(text, return_tensors='pt').to(device)
     original_logits = model(**inputs).logits
     original_probs = F.softmax(original_logits, dim=-1)
@@ -338,7 +428,8 @@ def select_top_ngrams(ngram_importances, top_n=top_n):
     sorted_ngrams = sorted(ngram_importances.items(), key=lambda item: item[1], reverse=True)
     top_ngrams = sorted_ngrams[:top_n]
     return top_ngrams
- 
+
+# Assuming 'io' DataFrame exists and is properly formatted
 for index, row in io.iterrows():
     if row['target'] == row['predicted_label']:  # Only proceed if prediction matches the label
 
@@ -352,29 +443,44 @@ for index, row in io.iterrows():
         io.at[index, f'{ngram_length}gram_weights'] = [weight for _, weight in top_ngrams]  # Rename this column to 'ngram_weights'
 
 
-# %%
-                                       
+# In[ ]:
+
+
 io.to_csv(filepath_full,index= False)
-
-
-# %%
-io = pd.read_csv(filepath_full)
-
-# %%
 
 io[0:4]
 
-# %%
+
+# In[ ]:
+
+
 io[f'significant_{ngram_length}grams'][0]
+ 
+ 
+
+
+# In[ ]:
+
 
 # %%
+
+ 
 io['text'][0], io[f'significant_{ngram_length}grams'][0]
 
+
+
+# In[ ]:
+
+
+# %%
 
 # %%
 io['label'] = le.inverse_transform(io['target'])
 
-# %%
+ 
+
+
+# In[ ]:
 
 
 # %%
@@ -383,7 +489,9 @@ io= io.dropna()
 # %%
 
 
-# %%
+# In[ ]:
+
+
 # label_to_words = io.groupby('label')['significant_words'].apply(lambda words: set().union(*words)).to_dict()
 label_to_words = io.groupby('label')[f'significant_{ngram_length}grams'].apply(lambda words: set().union(*words)).to_dict()
 # label_to_words = io.groupby('label')['significant_5grams'].apply(lambda words: set().union(*words)).to_dict()
@@ -392,13 +500,13 @@ print(label_to_words)
 
 
 
+# In[ ]:
+
+
 # %%
 
 # %%
-
-
-
-
+ 
 label_to_words_and_weights = {}
 
 for label, group in io.groupby('label'):
@@ -408,19 +516,18 @@ for label, group in io.groupby('label'):
         weights = row[f'{ngram_length}gram_weights']
         for word, weight in zip(words, weights):
             if word in word_weights_dict:
-                # Take the maximum of the existing and current weight
-                word_weights_dict[word] = max(word_weights_dict[word], weight)
+                word_weights_dict[word] += weight
             else:
                 word_weights_dict[word] = weight
     label_to_words_and_weights[label] = word_weights_dict
 
-# Display the dictionary with labels, words, and their maximum weights
+# Display the dictionary with labels, words, and their aggregated weights
 print(label_to_words_and_weights)
-
  
 
 
-# %%
+# In[ ]:
+
 
 # %%
 
@@ -433,7 +540,8 @@ len(list(label_to_words['Acne']))
 
 
 
-# %%
+# In[ ]:
+
 
 # %%
 
@@ -442,7 +550,8 @@ len(label_to_words)
 
 
 
-# %%
+# In[ ]:
+
 
 # %%
 
@@ -452,7 +561,8 @@ label_to_words
  
 
 
-# %%
+# In[ ]:
+
 
 test_data = pd.DataFrame(test_dataset)
 
@@ -483,7 +593,8 @@ test_data['first_half'][0:4] , test_data['second_half'][0:4]
 # %%
 
 
-# %%
+# In[ ]:
+
 
 # %%
 tdf = test_data[['first_half', 'label']]
@@ -514,7 +625,9 @@ print(report)
 
 
 
-# %%
+# In[ ]:
+
+
 # Move model to the specified device
 model = model.to(device)
 
@@ -587,7 +700,7 @@ test_data['significant_words'] = test_data['top3_predicted_labels'].apply(map_si
 test_data
 
 
-# %%
+# In[ ]:
 
 
 # %%
@@ -596,7 +709,8 @@ test_data
 test_data.to_csv(file_path,index= False)
 
 
-# %%
+# In[ ]:
+
 
 # %%
 df = test_data
@@ -607,7 +721,7 @@ df['significant_words'][0]
  
 
 
-# %%
+# In[ ]:
 
 
 # %%
@@ -616,12 +730,15 @@ df.rename(columns={'significant_words': 'significant_words_weights'}, inplace=Tr
  
 
 
-# %%
+# In[ ]:
+
+
 # %%
 len(df['significant_words_weights'][0])
 
 
-# %%
+# In[ ]:
+
 
 # %%
 df['significant_words_weights'][0][0]  
@@ -629,7 +746,9 @@ df['significant_words_weights'][0][0]
 # %%
 
 
-# %%
+# In[ ]:
+
+
 top_n = 15  # The number of top words you want to select
 
 def filter_top_n_words(list_of_dicts):
@@ -655,7 +774,8 @@ def filter_top_n_words(list_of_dicts):
 df['significant_words'] = df['significant_words_weights'].apply(filter_top_n_words)
 
 
-# %%
+# In[ ]:
+
 
 # %%
 df['significant_words'][0][0]  , df['significant_words'][0][1], df['significant_words'][0][2]
@@ -664,7 +784,8 @@ df['significant_words'][0][0]  , df['significant_words'][0][1], df['significant_
 # %%
 
 
-# %%
+# In[ ]:
+
 
 # %%
 df.shape
@@ -673,20 +794,24 @@ df.shape
 # %%
 
 
-# %%
- 
+# In[ ]:
+
+
 df['significant_words'][0][0]  , df['significant_words_weights'][0][0] 
 
 
 
-# %%
+# In[ ]:
+
 
 # %%
 # %%
 df = df.dropna(ignore_index =True)
 
 
-# %%
+# In[ ]:
+
+
 # %%
 df.to_csv(file_path ,index= False)
 
@@ -694,12 +819,11 @@ df.to_csv(file_path ,index= False)
 df.columns
 
 
-# %%
+# In[ ]:
+
 
 # %%
 len(df['significant_words'][0]),len(df['significant_words'][0][0])
 
 # %
-
-
 

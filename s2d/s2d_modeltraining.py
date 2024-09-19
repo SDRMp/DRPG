@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[38]:
+# In[17]:
 
 
-dstype = 'drug' 
+dstype = 's2d' 
 mname = 'debertaV3'
 
 
-# In[39]:
+# In[18]:
 
 
 modelpath = 'microsoft/deberta-v3-base'
@@ -27,14 +27,15 @@ print(saveDIR)
 
 
 
-# In[40]:
+# In[19]:
 
 
 # %%
 # %%
  
 import os
-import torch  
+import torch 
+os.environ["CUDA_VISIBLE_DEVICES"] = "2" 
 
 torch.cuda.empty_cache() 
 
@@ -54,45 +55,20 @@ from sklearn.metrics import accuracy_score, precision_recall_fscore_support, cla
  
 
 
-# In[41]:
+# In[20]:
 
 
-from datasets import load_dataset
-
-# datas = load_dataset("TaiChan3/drugReviews")
+df = pd.read_csv('/home/bhairavi/om/om4/s2d/Symptom2Disease.csv')
 
 
-# In[42]:
 
-
-train_df = pd.read_csv("/home/bhairavi/om/om5/drug/train.csv")
-test_df = pd.read_csv("/home/bhairavi/om/om5/drug/test.csv")
-
-train_df.shape, test_df.shape
-
-
-# In[43]:
-
-
-train_df['split'] = 'train'
-
-test_df['split'] = 'test'
+ 
+ 
+df.info()
  
 
 
-# In[44]:
-
-
-df = pd.concat([train_df, test_df], ignore_index=True)
-
-
-# In[45]:
-
-
-max_length = 512
-
-
-# In[46]:
+# In[21]:
 
 
 # %%
@@ -104,119 +80,61 @@ df.sample(5)
 # %%
 
 
-# In[47]:
+# In[22]:
 
 
-df.columns
+# %%
 
-
-# In[48]:
-
-
-df['text'] = df['review']
-
-df['label'] =  df['condition']
-
-
-df = df[['text', 'label', 'split']]
-
-
-# In[49]:
-
-
-df['label'].value_counts()
-
-
-# In[50]:
-
-
-threshold = 3
-
-
-# In[51]:
-
-
-label_counts = df['label'].value_counts()
-filtered_df = df[df['label'].map(label_counts) > threshold]
-
-
-# In[52]:
-
-
-filtered_df['label'].value_counts()
-
-
-# In[53]:
-
-
-df= filtered_df
-
-
-# In[54]:
-
-
+# %%
 from sklearn.preprocessing import LabelEncoder
- 
+
+# %%
 le = LabelEncoder()
 df['target'] = le.fit_transform(df['label'])
- 
+
+# %%
+
+
+
+# %%
+
+# %%
 fig = plt.figure(figsize=(8,6)) 
 df.groupby('label').text.count().sort_values().plot.barh(
     ylim=0,   title= 'NUMBER OF text IN EACH label CATEGORY\n')
 plt.xlabel('Number of ocurrences', fontsize = 10);
- 
+
+
+# %%
+
+
+# %%
+
+# %%
 numlabel = df['target'].nunique()
 numlabel
 
 
-# In[35]:
+# In[23]:
+
+
+df.drop(columns=["Unnamed: 0"], inplace=True)
+
+
+# In[24]:
 
 
 df.columns
 
 
-# In[36]:
-
-
-label_counts = df['label'].value_counts()
-print(label_counts)
-
-
-# In[59]:
-
-
-# top_100_labels = label_counts.index[:200]
-# print(top_100_labels)
-
-
-# In[60]:
-
-
-# Filter the DataFrame to retain only rows where 'condition' is in the top 100 frequent labels
-# df_filtered = df[df['label'].isin(top_100_labels)]
- 
-
-
-# In[61]:
-
-
-# df_filtered
-
-
-# In[62]:
-
-
-# df = df_filtered
-
-
-# In[37]:
+# In[25]:
 
 
 numlabel = df['target'].nunique()
 numlabel
 
 
-# In[22]:
+# In[26]:
 
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -231,42 +149,27 @@ model = AutoModelForSequenceClassification.from_pretrained(modelpath, num_labels
 model.to(device)
 
 
-# In[23]:
+# In[27]:
 
 
-# df['token_length'] = df['text'].apply(lambda x: len(tokenizer.tokenize(x)))
+df['token_length'] = df['text'].apply(lambda x: len(tokenizer.tokenize(x)))
 
-# # Calculate the maximum token length
-# max_length = df['token_length'].max()
+# Calculate the maximum token length
+max_length = df['token_length'].max()
 
-# # Calculate the next maximum token length
-# next_max_token_length = df['token_length'].nlargest(2).iloc[1]
+# Calculate the next maximum token length
+next_max_token_length = df['token_length'].nlargest(2).iloc[1]
 
-# # Calculate the average token length
-# average_token_length = df['token_length'].mean()
+# Calculate the average token length
+average_token_length = df['token_length'].mean()
 
-# # Display the results
-# print(f"Maximum token length: {max_length}")
-# print(f"Next maximum token length: {next_max_token_length}")
-# print(f"Average token length: {average_token_length:.2f}")
-
-
-# In[24]:
+# Display the results
+print(f"Maximum token length: {max_length}")
+print(f"Next maximum token length: {next_max_token_length}")
+print(f"Average token length: {average_token_length:.2f}")
 
 
-train_df = df[df['split'] == 'train'].drop(columns=['split'])
-
-test_df = df[df['split'] == 'test'].drop(columns=['split'])
- 
-
-
-# In[ ]:
-
-
-
-
-
-# In[25]:
+# In[28]:
 
 
 # %%
@@ -305,7 +208,7 @@ test_dataset = test_dataset.map(tokenize_and_format, batched=True,batch_size=16)
 
 
 
-# In[26]:
+# In[33]:
 
 
 # %%
@@ -367,20 +270,20 @@ trainer.train()
 
 
 
-# In[ ]:
+# In[34]:
 
 
-save_directory = saveDIR
+# save_directory = saveDIR
  
 
-# Save the model
-model.save_pretrained(save_directory)
+# # Save the model
+# model.save_pretrained(save_directory)
 
-# Save the tokenizer (optional, but recommended)
-tokenizer.save_pretrained(save_directory)
+# # Save the tokenizer (optional, but recommended)
+# tokenizer.save_pretrained(save_directory)
 
 
-# In[ ]:
+# In[35]:
 
 
 # %%
@@ -417,7 +320,7 @@ print(report)
 # %%
 
 
-# In[ ]:
+# In[36]:
 
 
 # %%

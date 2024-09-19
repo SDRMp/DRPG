@@ -1,5 +1,10 @@
-# %%
-ngram_length = 1
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[20]:
+
+
+ngram_length = 3
 dstype = 's2d' 
 mname = 'debertaV3'
 
@@ -32,19 +37,26 @@ print(Fore.YELLOW,'modelPATH--->',modelpath)
  
 
 
-# %%
+# In[21]:
 
 
 df  = pd.read_csv(file_path)
 df
 
-# %%
+
+# In[22]:
+
+
 df['top3_predicted_labels'][0]
 
-# %%
+
+# In[23]:
+
+
 df['significant_words'][0]
 
-# %%
+
+# In[24]:
 
 
 import html
@@ -74,10 +86,16 @@ df['significant_words'] = df['significant_words'].apply(parse_sets)
 # df['top3_predicted_labels'] = df['top3_predicted_labels'].apply(parse_sets)
  
 
-# %%
+
+# In[25]:
+
+
 df['significant_words'][0]
 
-# %%
+
+# In[31]:
+
+
 import requests 
 import ast 
 import re  
@@ -90,7 +108,15 @@ from sklearn.metrics import classification_report
 import random
 api_keys = [  
 
-            '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',  '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'
+    "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", "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", 
+    "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", "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", 
+    "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", "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",
+    "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", "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", 
+    "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", "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",
+    "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", "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", 
+    "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", "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",
+    "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", "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", 
+    "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", "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",
 
 ]
 
@@ -190,7 +216,7 @@ def generate_question(api_key, partial_info, labels, keywords):
         json={
             "inputs": input_text,
             "options": {"use_cache": False},
-            "parameters": {"max_new_tokens": 2048, "temperature": 0.7}
+            "parameters": {"max_new_tokens": 1024, "temperature": 0.7}
         }
     )
  
@@ -201,7 +227,7 @@ def generate_question(api_key, partial_info, labels, keywords):
     
             return output_text
         else:
-            return f"Failed to query the model: {response.status_code} - {response.text}", None
+            return " "
     else:
         return None
 
@@ -214,24 +240,11 @@ for i, key in enumerate(api_keys):
     end = start + chunk_size
     df_chunk = df.iloc[start:end]
     def process_row(x):
-        generated_q = None
+        
         generated_text = generate_question(key, x['first_half'], x['top3_predicted_labels'], x['significant_words'])
-        print("/n/n")
-        print(key)
-        print("/n/n")
         try:
             questions = re.findall(r'QUESTION: \"(.*?)\"', generated_text)
-
-            # Eliminate the first 3 questions
-            remaining_questions = questions[3:]
-
-            # Find the next question with more than 5 words
-            selected_question = None
-            for question in remaining_questions:
-                if len(question.split()) > 5:
-                    selected_question = question
-                    generated_q = selected_question
-                    break
+            generated_q = questions[3].strip() if len(questions) >= 4 else None
         except Exception as e:
             generated_q = None
         separator = "~" * 600
@@ -254,7 +267,8 @@ df['generated_question'] = pd.concat(results)
  
 
 
-# %%
-df.to_csv(filepath_full)
+# In[ ]:
 
+
+df.to_csv(filepath_full)
 

@@ -1,11 +1,12 @@
 # %%
  
 ngram_length = 3
-dstype = 'cc' 
+dstype = '20NG' 
 mname = 'debertaV3'
 
 # %%
 from colorama import Fore, Style
+
 import os
 
 # %%
@@ -22,11 +23,15 @@ print(Fore.YELLOW,"csv_filePATH--->",file_path)
 filepath_full = path + f'{dstype}_{ngram_length}top5.csv' 
 print(Fore.YELLOW,"QUE_filePATH--->",filepath_full)
  
-
+ 
  
 modelpath = f"/home/bhairavi/om/om5/{dstype}/{mname}_{dstype}"
 
+ 
+
 print(Fore.YELLOW,'modelPATH--->',modelpath)
+ 
+
 
 # %%
 
@@ -57,53 +62,73 @@ import numpy as np
 
 
 # %%
+ 
+from datasets import load_dataset
+
+dataset = load_dataset('rungalileo/20_Newsgroups_Fixed')
+
+# %%
+dataset
 
 
 # %%
-df = pd.read_csv('/home/bhairavi/om/om5/cc/cc.csv')
+
+import pandas as pd
+ 
+test_df = pd.DataFrame(dataset['test'])
+train_df = pd.DataFrame(dataset['train'])
 
 # %%
+train_df['split'] = 'train'
+
+test_df['split'] = 'test'
+ 
 
 # %%
+df = pd.concat([train_df, test_df], ignore_index=True)
 
 # %%
+ 
+df.shape
+
+# %%
+df.dropna(inplace=True)
+df.shape
+
+# %%
+df.columns
+
+# %%
+df['text'][0] , df['label'][0] 
+
+# %%
+df['label'].nunique()
+
+ 
 df.sample(5)
+ 
+df.drop(columns=["id"], inplace=True)
+ 
 
 
 # %%
+df[0:3]
 
-
-# %%
-df.drop(columns=["Unnamed: 0"], inplace=True)
-df.columns = (['label','text','target'])
-
-
-# %%
-
-
-# %%
-
-# %%
+ 
 from sklearn.preprocessing import LabelEncoder
 
 # %%
 le = LabelEncoder()
 df['target'] = le.fit_transform(df['label'])
 
-# %%
-
-
-
-# %%
-
-
-
-# %%
-
-# %%
+ 
+ 
 numlabel = df['target'].nunique()
 numlabel
 
+
+# %%
+df['target'].nunique(), df['label'].nunique()
 
 # %%
 df.columns
@@ -114,7 +139,8 @@ numlabel
 
 
 # %%
-df['text'] = df['text'].apply(lambda x: x[:512])
+df['text'] = df['text'].apply(lambda x: str(x)[:512] if isinstance(x, float) else x[:512])
+
 
 # %%
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -129,21 +155,27 @@ model = AutoModelForSequenceClassification.from_pretrained(modelpath, num_labels
 model.to(device)
 
 
+# %%
 max_length = 512
+
+# %%
+train_df = df[df['split'] == 'train'].drop(columns=['split'])
+
+test_df = df[df['split'] == 'test'].drop(columns=['split'])
+ 
+
+# %%
+train_df.shape, test_df.shape
+
+# %%
+train_val_df = train_df
 
 # %%
 
 # %%
 from sklearn.model_selection import StratifiedShuffleSplit
 
-# Splitting off the test set with 5% of the data
-sss = StratifiedShuffleSplit(n_splits=1, test_size=0.05, random_state=42)  # 5% for test
-for train_val_idx, test_idx in sss.split(df, df['target']):
-    train_val_df = df.iloc[train_val_idx]
-    test_df = df.iloc[test_idx]
-
-# Further split train_val_df into train and validation sets with validation set being 15.79% of the remaining data
-# (which is equivalent to 15% of the original dataset size)
+ 
 sss_val = StratifiedShuffleSplit(n_splits=1, test_size=0.15, random_state=42)  # ~15.79% of remaining data
 for train_idx, val_idx in sss_val.split(train_val_df, train_val_df['target']):
     train_df = train_val_df.iloc[train_idx]
@@ -166,16 +198,8 @@ train_dataset = train_dataset.map(tokenize_and_format, batched=True,batch_size=1
 eval_dataset = eval_dataset.map(tokenize_and_format, batched=True,batch_size=16) 
 test_dataset = test_dataset.map(tokenize_and_format, batched=True,batch_size=16)
 
-
-
-
 # %%
 
-
-# %%
-
-
-# %%
 from sklearn.metrics import f1_score, precision_score, recall_score
 
 def compute_metrics(pred):
@@ -190,9 +214,6 @@ def compute_metrics(pred):
         'eval_recall': recall,
     }
 
- 
-
- 
  
 
 training_args = TrainingArguments(
@@ -210,8 +231,6 @@ training_args = TrainingArguments(
     logging_steps=10,
     report_to=[] 
 )
-
-
  
 
 trainer = Trainer(
@@ -223,16 +242,10 @@ trainer = Trainer(
     tokenizer=tokenizer
 )
 
- 
-
-
-
 
 # %%
-
  
-io=   pd.DataFrame(eval_dataset)
- 
+io = pd.DataFrame(eval_dataset)
 batch_size = 4
 
 # Convert your DataFrame to a list of texts
@@ -282,31 +295,24 @@ with torch.no_grad():
         # Append batch predictions to the list
         all_predictions.extend(predicted_labels)
 
-# Add predictions to DataFrame
 io['predicted_label'] = all_predictions
  
 
 
 # %%
  
-
-# Set device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-# %%
+ 
 top_n = 5
- 
- 
- 
-     
-
 
 # %%
 io[f'significant_{ngram_length}grams'] = None
 io[f'{ngram_length}gram_weights'] = None 
 
 def occlusion(text, model, tokenizer, label, ngram_length, device):
- 
+    """
+    Perform occlusion on the text and return n-gram importances based on the specified n-gram length.
+    """
     inputs = tokenizer(text, return_tensors='pt').to(device)
     original_logits = model(**inputs).logits
     original_probs = F.softmax(original_logits, dim=-1)
@@ -340,28 +346,21 @@ def select_top_ngrams(ngram_importances, top_n=top_n):
     return top_ngrams
  
 for index, row in io.iterrows():
-    if row['target'] == row['predicted_label']:  # Only proceed if prediction matches the label
 
+    if row['target'] == row['predicted_label']:   
+                                                     
         ngram_attributions = occlusion(row['text'], model, tokenizer, row['label'], ngram_length, device)
         positive_attributions = aggregate_and_filter_positive_attributions(ngram_attributions)
         top_ngrams = select_top_ngrams(positive_attributions, top_n=top_n)  # Ensure top_n is appropriately set
-        
-        # Store significant n-grams
+  
         io.at[index, f'significant_{ngram_length}grams'] = [ngram for ngram, _ in top_ngrams]  # Rename this column to 'significant_ngrams'
-        # Store weights
+      
         io.at[index, f'{ngram_length}gram_weights'] = [weight for _, weight in top_ngrams]  # Rename this column to 'ngram_weights'
 
 
 # %%
-                                       
 io.to_csv(filepath_full,index= False)
-
-
-# %%
-io = pd.read_csv(filepath_full)
-
-# %%
-
+                                     
 io[0:4]
 
 # %%
@@ -370,18 +369,11 @@ io[f'significant_{ngram_length}grams'][0]
 # %%
 io['text'][0], io[f'significant_{ngram_length}grams'][0]
 
-
 # %%
 io['label'] = le.inverse_transform(io['target'])
 
 # %%
-
-
-# %%
 io= io.dropna()
-
-# %%
-
 
 # %%
 # label_to_words = io.groupby('label')['significant_words'].apply(lambda words: set().union(*words)).to_dict()
@@ -394,10 +386,25 @@ print(label_to_words)
 
 # %%
 
-# %%
 
+# # %%
+ 
+# label_to_words_and_weights = {}
 
+# for label, group in io.groupby('label'):
+#     word_weights_dict = {}
+#     for index, row in group.iterrows():
+#         words = row[f'significant_{ngram_length}grams']
+#         weights = row[f'{ngram_length}gram_weights']
+#         for word, weight in zip(words, weights):
+#             if word in word_weights_dict:
+#                 word_weights_dict[word] += weight
+#             else:
+#                 word_weights_dict[word] = weight
+#     label_to_words_and_weights[label] = word_weights_dict
 
+# # Display the dictionary with labels, words, and their aggregated weights
+# print(label_to_words_and_weights)
 
 label_to_words_and_weights = {}
 
@@ -417,36 +424,20 @@ for label, group in io.groupby('label'):
 # Display the dictionary with labels, words, and their maximum weights
 print(label_to_words_and_weights)
 
- 
-
 
 # %%
-
-# %%
-
-
 # %%
 label_to_words = label_to_words_and_weights
+ 
 
 # %%
-len(list(label_to_words['Acne']))
-
-
-
-# %%
-
-# %%
-
 # %%
 len(label_to_words)
 
-
-
 # %%
 
 # %%
 
-# %%
 label_to_words
 
  
@@ -521,36 +512,52 @@ model = model.to(device)
 # Set the model to evaluation mode
 model.eval()
 
+# Set batch size
+batch_size = 32  # Adjust based on your memory constraints
+
 # Disable gradient calculations for efficiency
 with torch.no_grad():
-    # Assuming your DataFrame `io` has a column 'text' containing the text to predict
     texts = test_data['first_half'].tolist()
-    # Tokenize the text
-    inputs = tokenizer(texts, padding=True, truncation=True, return_tensors="pt", max_length=512)
+    
+    # Create empty lists to store results
+    all_predicted_labels = []
+    all_predicted_probs = []
 
-    # Move inputs to the same device as model
-    inputs = {k: v.to(device) for k, v in inputs.items()}
+    # Process the data in batches
+    for i in range(0, len(texts), batch_size):
+        batch_texts = texts[i:i+batch_size]
 
-    # Get predictions
-    outputs = model(**inputs)
-    # Apply softmax to get probabilities from the logits
-    probabilities = torch.nn.functional.softmax(outputs.logits, dim=1)
-    # Get the top 3 predicted class indices and their probabilities
-    top_probs, top_indices = torch.topk(probabilities, 3, dim=1)
+        # Tokenize the batch
+        inputs = tokenizer(batch_texts, padding=True, truncation=True, return_tensors="pt", max_length=512)
 
-    # Ensure the indices and probabilities are back on CPU for DataFrame operations
-    top_indices = top_indices.cpu()
-    top_probs = top_probs.cpu()
+        # Move inputs to the same device as model
+        inputs = {k: v.to(device) for k, v in inputs.items()}
 
-    # Convert indices to actual labels if labels are strings
-    if hasattr(tokenizer, 'get_labels') and callable(tokenizer.get_labels):
-        predicted_labels = [[tokenizer.get_labels()[idx] for idx in indices] for indices in top_indices]
-    else:
-        predicted_labels = top_indices.tolist()
+        # Get predictions
+        outputs = model(**inputs)
+        probabilities = torch.nn.functional.softmax(outputs.logits, dim=1)
+        
+        # Get the top 3 predicted class indices and their probabilities
+        top_probs, top_indices = torch.topk(probabilities, 3, dim=1)
 
-    # Add top 3 predictions to DataFrame
-    test_data['top3_predicted_labels'] = predicted_labels
-    test_data['top3_predicted_probabilities'] = top_probs.tolist()
+        # Move to CPU for DataFrame operations
+        top_indices = top_indices.cpu()
+        top_probs = top_probs.cpu()
+
+        # Convert indices to actual labels if labels are strings
+        if hasattr(tokenizer, 'get_labels') and callable(tokenizer.get_labels):
+            batch_predicted_labels = [[tokenizer.get_labels()[idx] for idx in indices] for indices in top_indices]
+        else:
+            batch_predicted_labels = top_indices.tolist()
+
+        # Append results to the overall list
+        all_predicted_labels.extend(batch_predicted_labels)
+        all_predicted_probs.extend(top_probs.tolist())
+
+    # Add the predictions and probabilities to the DataFrame
+    test_data['top3_predicted_labels'] = all_predicted_labels
+    test_data['top3_predicted_probabilities'] = all_predicted_probs
+
 
 
  
@@ -589,9 +596,6 @@ test_data
 
 # %%
 
-
-# %%
-
 # %%
 test_data.to_csv(file_path,index= False)
 
@@ -600,7 +604,6 @@ test_data.to_csv(file_path,index= False)
 
 # %%
 df = test_data
-
  
 df['significant_words'][0]
 
@@ -608,18 +611,13 @@ df['significant_words'][0]
 
 
 # %%
-
-
-# %%
 # %%
 df.rename(columns={'significant_words': 'significant_words_weights'}, inplace=True)
- 
 
 
 # %%
 # %%
 len(df['significant_words_weights'][0])
-
 
 # %%
 
@@ -659,8 +657,6 @@ df['significant_words'] = df['significant_words_weights'].apply(filter_top_n_wor
 
 # %%
 df['significant_words'][0][0]  , df['significant_words'][0][1], df['significant_words'][0][2]
-
-
 # %%
 
 
@@ -668,13 +664,11 @@ df['significant_words'][0][0]  , df['significant_words'][0][1], df['significant_
 
 # %%
 df.shape
-
-
 # %%
 
 
 # %%
- 
+
 df['significant_words'][0][0]  , df['significant_words_weights'][0][0] 
 
 
@@ -695,11 +689,8 @@ df.columns
 
 
 # %%
-
 # %%
 len(df['significant_words'][0]),len(df['significant_words'][0][0])
-
-# %
-
+# %%
 
 

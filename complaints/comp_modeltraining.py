@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[38]:
+# In[1]:
 
 
-dstype = 'drug' 
+dstype = 'comp' 
 mname = 'debertaV3'
 
 
-# In[39]:
+# In[2]:
 
 
 modelpath = 'microsoft/deberta-v3-base'
@@ -27,7 +27,7 @@ print(saveDIR)
 
 
 
-# In[40]:
+# In[3]:
 
 
 # %%
@@ -54,45 +54,21 @@ from sklearn.metrics import accuracy_score, precision_recall_fscore_support, cla
  
 
 
-# In[41]:
+# In[4]:
 
 
-from datasets import load_dataset
-
-# datas = load_dataset("TaiChan3/drugReviews")
-
-
-# In[42]:
+df = pd.read_csv('/home/bhairavi/om/om5/complaints/complaints.csv')
+df.shape
 
 
-train_df = pd.read_csv("/home/bhairavi/om/om5/drug/train.csv")
-test_df = pd.read_csv("/home/bhairavi/om/om5/drug/test.csv")
-
-train_df.shape, test_df.shape
+# In[5]:
 
 
-# In[43]:
+df['narrative'].dropna(inplace=True)
+df.shape
 
 
-train_df['split'] = 'train'
-
-test_df['split'] = 'test'
- 
-
-
-# In[44]:
-
-
-df = pd.concat([train_df, test_df], ignore_index=True)
-
-
-# In[45]:
-
-
-max_length = 512
-
-
-# In[46]:
+# In[6]:
 
 
 # %%
@@ -104,119 +80,80 @@ df.sample(5)
 # %%
 
 
-# In[47]:
+# In[7]:
 
 
-df.columns
+df.drop(columns=["Unnamed: 0"], inplace=True)
+df.columns = (['label','text' ])
 
 
-# In[48]:
+# In[8]:
 
 
-df['text'] = df['review']
-
-df['label'] =  df['condition']
+df[0:3]
 
 
-df = df[['text', 'label', 'split']]
+# In[ ]:
 
 
-# In[49]:
 
 
-df['label'].value_counts()
+
+# In[9]:
 
 
-# In[50]:
+# %%
 
-
-threshold = 3
-
-
-# In[51]:
-
-
-label_counts = df['label'].value_counts()
-filtered_df = df[df['label'].map(label_counts) > threshold]
-
-
-# In[52]:
-
-
-filtered_df['label'].value_counts()
-
-
-# In[53]:
-
-
-df= filtered_df
-
-
-# In[54]:
-
-
+# %%
 from sklearn.preprocessing import LabelEncoder
- 
+
+# %%
 le = LabelEncoder()
 df['target'] = le.fit_transform(df['label'])
- 
+
+# %%
+
+
+
+# %%
+
+# %%
 fig = plt.figure(figsize=(8,6)) 
 df.groupby('label').text.count().sort_values().plot.barh(
     ylim=0,   title= 'NUMBER OF text IN EACH label CATEGORY\n')
 plt.xlabel('Number of ocurrences', fontsize = 10);
- 
+
+
+# %%
+
+
+# %%
+
+# %%
 numlabel = df['target'].nunique()
 numlabel
 
 
-# In[35]:
+# In[10]:
 
 
 df.columns
 
 
-# In[36]:
-
-
-label_counts = df['label'].value_counts()
-print(label_counts)
-
-
-# In[59]:
-
-
-# top_100_labels = label_counts.index[:200]
-# print(top_100_labels)
-
-
-# In[60]:
-
-
-# Filter the DataFrame to retain only rows where 'condition' is in the top 100 frequent labels
-# df_filtered = df[df['label'].isin(top_100_labels)]
- 
-
-
-# In[61]:
-
-
-# df_filtered
-
-
-# In[62]:
-
-
-# df = df_filtered
-
-
-# In[37]:
+# In[11]:
 
 
 numlabel = df['target'].nunique()
 numlabel
 
 
-# In[22]:
+# In[13]:
+
+
+df['text'] = df['text'].apply(lambda x: str(x)[:512] if isinstance(x, float) else x[:512])
+
+
+# In[14]:
 
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -231,7 +168,7 @@ model = AutoModelForSequenceClassification.from_pretrained(modelpath, num_labels
 model.to(device)
 
 
-# In[23]:
+# In[ ]:
 
 
 # df['token_length'] = df['text'].apply(lambda x: len(tokenizer.tokenize(x)))
@@ -251,22 +188,13 @@ model.to(device)
 # print(f"Average token length: {average_token_length:.2f}")
 
 
-# In[24]:
+# In[15]:
 
 
-train_df = df[df['split'] == 'train'].drop(columns=['split'])
-
-test_df = df[df['split'] == 'test'].drop(columns=['split'])
- 
+max_length = 512
 
 
-# In[ ]:
-
-
-
-
-
-# In[25]:
+# In[16]:
 
 
 # %%
@@ -305,7 +233,7 @@ test_dataset = test_dataset.map(tokenize_and_format, batched=True,batch_size=16)
 
 
 
-# In[26]:
+# In[17]:
 
 
 # %%
@@ -367,7 +295,13 @@ trainer.train()
 
 
 
-# In[ ]:
+# In[18]:
+
+
+saveDIR
+
+
+# In[19]:
 
 
 save_directory = saveDIR
@@ -380,7 +314,7 @@ model.save_pretrained(save_directory)
 tokenizer.save_pretrained(save_directory)
 
 
-# In[ ]:
+# In[20]:
 
 
 # %%
@@ -417,7 +351,7 @@ print(report)
 # %%
 
 
-# In[ ]:
+# In[21]:
 
 
 # %%

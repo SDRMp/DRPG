@@ -1,16 +1,9 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[38]:
-
-
-dstype = 'drug' 
+# %%
+dstype = '20NG' 
 mname = 'debertaV3'
 
-
-# In[39]:
-
-
+# %%
+ 
 modelpath = 'microsoft/deberta-v3-base'
 # modelpath = "bert-base-uncased"
 
@@ -20,14 +13,10 @@ saveDIR = f"/home/bhairavi/om/om5/{dstype}/{mname}_{dstype}"
 print(saveDIR)
 # %%
 
-
-# In[ ]:
-
+# %%
 
 
-
-
-# In[40]:
+# %%
 
 
 # %%
@@ -54,46 +43,49 @@ from sklearn.metrics import accuracy_score, precision_recall_fscore_support, cla
  
 
 
-# In[41]:
-
-
+# %%
 from datasets import load_dataset
 
-# datas = load_dataset("TaiChan3/drugReviews")
+dataset = load_dataset('rungalileo/20_Newsgroups_Fixed')
+
+# %%
+dataset
 
 
-# In[42]:
+# %%
+import pandas as pd
 
+# %%
+test_df = pd.DataFrame(dataset['test'])
+train_df = pd.DataFrame(dataset['train'])
 
-train_df = pd.read_csv("/home/bhairavi/om/om5/drug/train.csv")
-test_df = pd.read_csv("/home/bhairavi/om/om5/drug/test.csv")
-
-train_df.shape, test_df.shape
-
-
-# In[43]:
-
-
+# %%
 train_df['split'] = 'train'
 
 test_df['split'] = 'test'
  
 
-
-# In[44]:
-
-
+# %%
 df = pd.concat([train_df, test_df], ignore_index=True)
 
+# %%
+ 
+df.shape
 
-# In[45]:
+# %%
+df.dropna(inplace=True)
+df.shape
 
+# %%
+df.columns
 
-max_length = 512
+# %%
+df['text'][0] , df['label'][0] 
 
+# %%
+df['label'].nunique()
 
-# In[46]:
-
+# %%
 
 # %%
 
@@ -104,121 +96,51 @@ df.sample(5)
 # %%
 
 
-# In[47]:
-
-
-df.columns
-
-
-# In[48]:
-
-
-df['text'] = df['review']
-
-df['label'] =  df['condition']
-
-
-df = df[['text', 'label', 'split']]
-
-
-# In[49]:
-
-
-df['label'].value_counts()
-
-
-# In[50]:
-
-
-threshold = 3
-
-
-# In[51]:
-
-
-label_counts = df['label'].value_counts()
-filtered_df = df[df['label'].map(label_counts) > threshold]
-
-
-# In[52]:
-
-
-filtered_df['label'].value_counts()
-
-
-# In[53]:
-
-
-df= filtered_df
-
-
-# In[54]:
-
-
-from sklearn.preprocessing import LabelEncoder
+# %%
+df.drop(columns=["id"], inplace=True)
  
+
+
+# %%
+df[0:3]
+
+# %%
+
+
+# %%
+
+# %%
+from sklearn.preprocessing import LabelEncoder
+
+# %%
 le = LabelEncoder()
 df['target'] = le.fit_transform(df['label'])
+
  
-fig = plt.figure(figsize=(8,6)) 
-df.groupby('label').text.count().sort_values().plot.barh(
-    ylim=0,   title= 'NUMBER OF text IN EACH label CATEGORY\n')
-plt.xlabel('Number of ocurrences', fontsize = 10);
- 
+
+# %%
+
+# %%
 numlabel = df['target'].nunique()
 numlabel
 
 
-# In[35]:
+# %%
+df['target'].nunique(), df['label'].nunique()
 
-
+# %%
 df.columns
 
-
-# In[36]:
-
-
-label_counts = df['label'].value_counts()
-print(label_counts)
-
-
-# In[59]:
-
-
-# top_100_labels = label_counts.index[:200]
-# print(top_100_labels)
-
-
-# In[60]:
-
-
-# Filter the DataFrame to retain only rows where 'condition' is in the top 100 frequent labels
-# df_filtered = df[df['label'].isin(top_100_labels)]
- 
-
-
-# In[61]:
-
-
-# df_filtered
-
-
-# In[62]:
-
-
-# df = df_filtered
-
-
-# In[37]:
-
-
+# %%
 numlabel = df['target'].nunique()
 numlabel
 
 
-# In[22]:
+# %%
+df['text'] = df['text'].apply(lambda x: str(x)[:512] if isinstance(x, float) else x[:512])
 
 
+# %%
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 device = "cuda"  # the device to load the model onto
@@ -230,10 +152,7 @@ model = AutoModelForSequenceClassification.from_pretrained(modelpath, num_labels
 # Move the model to the specified device
 model.to(device)
 
-
-# In[23]:
-
-
+# %%
 # df['token_length'] = df['text'].apply(lambda x: len(tokenizer.tokenize(x)))
 
 # # Calculate the maximum token length
@@ -250,33 +169,31 @@ model.to(device)
 # print(f"Next maximum token length: {next_max_token_length}")
 # print(f"Average token length: {average_token_length:.2f}")
 
+# %%
+max_length = 512
 
-# In[24]:
-
-
+# %%
 train_df = df[df['split'] == 'train'].drop(columns=['split'])
 
 test_df = df[df['split'] == 'test'].drop(columns=['split'])
  
 
+# %%
+train_df.shape, test_df.shape
 
-# In[ ]:
+# %%
+train_val_df = train_df
 
-
-
-
-
-# In[25]:
-
+# %%
 
 # %%
 from sklearn.model_selection import StratifiedShuffleSplit
 
 # Splitting off the test set with 5% of the data
-sss = StratifiedShuffleSplit(n_splits=1, test_size=0.05, random_state=42)  # 5% for test
-for train_val_idx, test_idx in sss.split(df, df['target']):
-    train_val_df = df.iloc[train_val_idx]
-    test_df = df.iloc[test_idx]
+# sss = StratifiedShuffleSplit(n_splits=1, test_size=0.05, random_state=42)  # 5% for test
+# for train_val_idx, test_idx in sss.split(df, df['target']):
+#     train_val_df = df.iloc[train_val_idx]
+#     test_df = df.iloc[test_idx]
 
 # Further split train_val_df into train and validation sets with validation set being 15.79% of the remaining data
 # (which is equivalent to 15% of the original dataset size)
@@ -305,7 +222,7 @@ test_dataset = test_dataset.map(tokenize_and_format, batched=True,batch_size=16)
 
 
 
-# In[26]:
+# %%
 
 
 # %%
@@ -367,9 +284,10 @@ trainer.train()
 
 
 
-# In[ ]:
+# %%
+saveDIR
 
-
+# %%
 save_directory = saveDIR
  
 
@@ -379,9 +297,7 @@ model.save_pretrained(save_directory)
 # Save the tokenizer (optional, but recommended)
 tokenizer.save_pretrained(save_directory)
 
-
-# In[ ]:
-
+# %%
 
 # %%
 from colorama import Fore, Style
@@ -417,7 +333,7 @@ print(report)
 # %%
 
 
-# In[ ]:
+# %%
 
 
 # %%
@@ -441,4 +357,6 @@ report = classification_report(
 )
 
 print(report)
+
+
 

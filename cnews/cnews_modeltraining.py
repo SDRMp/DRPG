@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[38]:
+# In[18]:
 
 
-dstype = 'drug' 
+dstype = 'cnews' 
 mname = 'debertaV3'
 
 
-# In[39]:
+# In[19]:
 
 
 modelpath = 'microsoft/deberta-v3-base'
@@ -27,7 +27,7 @@ print(saveDIR)
 
 
 
-# In[40]:
+# In[20]:
 
 
 # %%
@@ -54,45 +54,20 @@ from sklearn.metrics import accuracy_score, precision_recall_fscore_support, cla
  
 
 
-# In[41]:
+# In[34]:
 
 
-from datasets import load_dataset
-
-# datas = load_dataset("TaiChan3/drugReviews")
+df = pd.read_csv('/home/bhairavi/om/om5/cnews/cryptonews.csv')
 
 
-# In[42]:
 
-
-train_df = pd.read_csv("/home/bhairavi/om/om5/drug/train.csv")
-test_df = pd.read_csv("/home/bhairavi/om/om5/drug/test.csv")
-
-train_df.shape, test_df.shape
-
-
-# In[43]:
-
-
-train_df['split'] = 'train'
-
-test_df['split'] = 'test'
+ 
+ 
+ 
  
 
 
-# In[44]:
-
-
-df = pd.concat([train_df, test_df], ignore_index=True)
-
-
-# In[45]:
-
-
-max_length = 512
-
-
-# In[46]:
+# In[35]:
 
 
 # %%
@@ -104,119 +79,81 @@ df.sample(5)
 # %%
 
 
-# In[47]:
-
-
-df.columns
-
-
-# In[48]:
-
-
-df['text'] = df['review']
-
-df['label'] =  df['condition']
-
-
-df = df[['text', 'label', 'split']]
-
-
-# In[49]:
-
-
-df['label'].value_counts()
-
-
-# In[50]:
-
-
-threshold = 3
-
-
-# In[51]:
-
-
-label_counts = df['label'].value_counts()
-filtered_df = df[df['label'].map(label_counts) > threshold]
-
-
-# In[52]:
-
-
-filtered_df['label'].value_counts()
-
-
-# In[53]:
-
-
-df= filtered_df
-
-
-# In[54]:
-
-
-from sklearn.preprocessing import LabelEncoder
- 
-le = LabelEncoder()
-df['target'] = le.fit_transform(df['label'])
- 
-fig = plt.figure(figsize=(8,6)) 
-df.groupby('label').text.count().sort_values().plot.barh(
-    ylim=0,   title= 'NUMBER OF text IN EACH label CATEGORY\n')
-plt.xlabel('Number of ocurrences', fontsize = 10);
- 
-numlabel = df['target'].nunique()
-numlabel
-
-
-# In[35]:
-
-
-df.columns
-
-
 # In[36]:
 
 
-label_counts = df['label'].value_counts()
-print(label_counts)
-
-
-# In[59]:
-
-
-# top_100_labels = label_counts.index[:200]
-# print(top_100_labels)
-
-
-# In[60]:
-
-
-# Filter the DataFrame to retain only rows where 'condition' is in the top 100 frequent labels
-# df_filtered = df[df['label'].isin(top_100_labels)]
- 
-
-
-# In[61]:
-
-
-# df_filtered
-
-
-# In[62]:
-
-
-# df = df_filtered
+df['text']  = df['text'] + df['title']
 
 
 # In[37]:
 
 
+df['label'] = df['subject']
+
+
+# In[38]:
+
+
+df.columns
+
+
+# In[39]:
+
+
+# %%
+
+# %%
+from sklearn.preprocessing import LabelEncoder
+
+# %%
+le = LabelEncoder()
+df['target'] = le.fit_transform(df['label'])
+
+# %%
+
+
+# In[40]:
+
+
+# %%
+
+# %%
+fig = plt.figure(figsize=(8,6)) 
+df.groupby('label').text.count().sort_values().plot.barh(
+    ylim=0,   title= 'NUMBER OF text IN EACH label CATEGORY\n')
+plt.xlabel('Number of ocurrences', fontsize = 10);
+
+
+# %%
+
+
+# %%
+
+# %%
 numlabel = df['target'].nunique()
 numlabel
 
 
-# In[22]:
+# In[41]:
+
+
+df = df[['text', 'target','label']]
+
+
+# In[42]:
+
+
+df.columns
+
+
+# In[43]:
+
+
+numlabel = df['target'].nunique()
+numlabel
+
+
+# In[44]:
 
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -231,42 +168,36 @@ model = AutoModelForSequenceClassification.from_pretrained(modelpath, num_labels
 model.to(device)
 
 
-# In[23]:
-
-
-# df['token_length'] = df['text'].apply(lambda x: len(tokenizer.tokenize(x)))
-
-# # Calculate the maximum token length
-# max_length = df['token_length'].max()
-
-# # Calculate the next maximum token length
-# next_max_token_length = df['token_length'].nlargest(2).iloc[1]
-
-# # Calculate the average token length
-# average_token_length = df['token_length'].mean()
-
-# # Display the results
-# print(f"Maximum token length: {max_length}")
-# print(f"Next maximum token length: {next_max_token_length}")
-# print(f"Average token length: {average_token_length:.2f}")
-
-
-# In[24]:
-
-
-train_df = df[df['split'] == 'train'].drop(columns=['split'])
-
-test_df = df[df['split'] == 'test'].drop(columns=['split'])
- 
-
-
 # In[ ]:
 
 
 
 
 
-# In[25]:
+# In[45]:
+
+
+df['token_length'] = df['text'].apply(lambda x: len(x.split()))
+
+# Calculate the maximum token length
+max_length = df['token_length'].max()
+# Calculate the next maximum token length
+next_max_token_length = df['token_length'].nlargest(2).iloc[1] 
+
+
+# Calculate the average token length
+average_token_length = df['token_length'].mean()
+
+# Display the results
+print(f"Maximum token length: {max_length}")
+print(f"Next maximum token length: {next_max_token_length}") 
+print(f"Average token length: {average_token_length:.2f}")
+
+# %%
+min(df['token_length'])
+
+
+# In[46]:
 
 
 # %%
@@ -305,7 +236,7 @@ test_dataset = test_dataset.map(tokenize_and_format, batched=True,batch_size=16)
 
 
 
-# In[26]:
+# In[47]:
 
 
 # %%
@@ -367,7 +298,7 @@ trainer.train()
 
 
 
-# In[ ]:
+# In[48]:
 
 
 save_directory = saveDIR
@@ -380,7 +311,7 @@ model.save_pretrained(save_directory)
 tokenizer.save_pretrained(save_directory)
 
 
-# In[ ]:
+# In[49]:
 
 
 # %%
@@ -417,7 +348,7 @@ print(report)
 # %%
 
 
-# In[ ]:
+# In[50]:
 
 
 # %%

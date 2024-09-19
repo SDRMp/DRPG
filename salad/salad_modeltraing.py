@@ -1,19 +1,47 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[38]:
+# In[30]:
 
 
-dstype = 'drug' 
-mname = 'debertaV3'
+mname = 'bert'
+dstype = 'salad' 
 
 
-# In[39]:
+# In[31]:
 
 
+# skyline
+
+# %%
+from colorama import Fore, Style
+
+
+# In[32]:
+
+
+# %%
+import torch
+import torchvision
+
+# Check PyTorch version
+print("PyTorch version:", torch.__version__)
+
+# Check if CUDA is available (GPU support)
+print("CUDA available:", torch.cuda.is_available())
+
+# Check the number of GPUs
+print("Number of GPUs:", torch.cuda.device_count())
+
+
+
+# In[33]:
+
+
+# %%
+# %%
 modelpath = 'microsoft/deberta-v3-base'
-# modelpath = "bert-base-uncased"
-
+modelpath = "bert-base-uncased"
 
 datapath = None
 saveDIR = f"/home/bhairavi/om/om5/{dstype}/{mname}_{dstype}"
@@ -21,20 +49,93 @@ print(saveDIR)
 # %%
 
 
-# In[ ]:
+# In[34]:
 
 
+from datasets import load_dataset
 
+dataset = load_dataset("OpenSafetyLab/Salad-Data", name='base_set', split='train')
+
+
+# In[35]:
+
+
+dataset
+
+
+# In[36]:
+
+
+import pandas as pd
+
+
+# In[37]:
+
+
+df = pd.DataFrame(dataset)
+
+
+# In[38]:
+
+
+df['3-category'].nunique()
+
+
+# In[39]:
+
+
+df
 
 
 # In[40]:
 
 
+df['label'] = df['3-category']
+
+
+# In[41]:
+
+
+df['text'] = df['question']
+
+
+# In[42]:
+
+
+df = df[['text','label']]
+
+
+# In[43]:
+
+
 # %%
+from sklearn.preprocessing import LabelEncoder
+
 # %%
- 
+le = LabelEncoder()
+df['target'] = le.fit_transform(df['label'])
+
+# %%
+
+
+# In[44]:
+
+
+df.columns
+
+
+# In[45]:
+
+
+df.shape
+
+
+# In[46]:
+
+
 import os
-import torch  
+import torch 
+os.environ["CUDA_VISIBLE_DEVICES"] = "2" 
 
 torch.cuda.empty_cache() 
 
@@ -47,178 +148,18 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, classification_report
  
 
- 
-
-
-# %%
- 
-
-
-# In[41]:
-
-
-from datasets import load_dataset
-
-# datas = load_dataset("TaiChan3/drugReviews")
-
-
-# In[42]:
-
-
-train_df = pd.read_csv("/home/bhairavi/om/om5/drug/train.csv")
-test_df = pd.read_csv("/home/bhairavi/om/om5/drug/test.csv")
-
-train_df.shape, test_df.shape
-
-
-# In[43]:
-
-
-train_df['split'] = 'train'
-
-test_df['split'] = 'test'
- 
-
-
-# In[44]:
-
-
-df = pd.concat([train_df, test_df], ignore_index=True)
-
-
-# In[45]:
-
-
-max_length = 512
-
-
-# In[46]:
-
-
-# %%
-
-# %%
-df.sample(5)
-
-
-# %%
-
 
 # In[47]:
 
 
-df.columns
+numlabel = df['target'].nunique()
+numlabel
 
 
 # In[48]:
 
 
-df['text'] = df['review']
-
-df['label'] =  df['condition']
-
-
-df = df[['text', 'label', 'split']]
-
-
-# In[49]:
-
-
-df['label'].value_counts()
-
-
-# In[50]:
-
-
-threshold = 3
-
-
-# In[51]:
-
-
-label_counts = df['label'].value_counts()
-filtered_df = df[df['label'].map(label_counts) > threshold]
-
-
-# In[52]:
-
-
-filtered_df['label'].value_counts()
-
-
-# In[53]:
-
-
-df= filtered_df
-
-
-# In[54]:
-
-
-from sklearn.preprocessing import LabelEncoder
- 
-le = LabelEncoder()
-df['target'] = le.fit_transform(df['label'])
- 
-fig = plt.figure(figsize=(8,6)) 
-df.groupby('label').text.count().sort_values().plot.barh(
-    ylim=0,   title= 'NUMBER OF text IN EACH label CATEGORY\n')
-plt.xlabel('Number of ocurrences', fontsize = 10);
- 
-numlabel = df['target'].nunique()
-numlabel
-
-
-# In[35]:
-
-
-df.columns
-
-
-# In[36]:
-
-
-label_counts = df['label'].value_counts()
-print(label_counts)
-
-
-# In[59]:
-
-
-# top_100_labels = label_counts.index[:200]
-# print(top_100_labels)
-
-
-# In[60]:
-
-
-# Filter the DataFrame to retain only rows where 'condition' is in the top 100 frequent labels
-# df_filtered = df[df['label'].isin(top_100_labels)]
- 
-
-
-# In[61]:
-
-
-# df_filtered
-
-
-# In[62]:
-
-
-# df = df_filtered
-
-
-# In[37]:
-
-
-numlabel = df['target'].nunique()
-numlabel
-
-
-# In[22]:
-
-
+# %%
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 device = "cuda"  # the device to load the model onto
@@ -231,42 +172,57 @@ model = AutoModelForSequenceClassification.from_pretrained(modelpath, num_labels
 model.to(device)
 
 
-# In[23]:
+# In[49]:
 
 
-# df['token_length'] = df['text'].apply(lambda x: len(tokenizer.tokenize(x)))
+df['token_length'] = df['text'].apply(lambda x: len(tokenizer.tokenize(x)))
 
-# # Calculate the maximum token length
-# max_length = df['token_length'].max()
+# Calculate the maximum token length
+max_length = df['token_length'].max()
 
-# # Calculate the next maximum token length
-# next_max_token_length = df['token_length'].nlargest(2).iloc[1]
+# Calculate the next maximum token length
+next_max_token_length = df['token_length'].nlargest(2).iloc[1]
 
-# # Calculate the average token length
-# average_token_length = df['token_length'].mean()
+# Calculate the average token length
+average_token_length = df['token_length'].mean()
 
-# # Display the results
-# print(f"Maximum token length: {max_length}")
-# print(f"Next maximum token length: {next_max_token_length}")
-# print(f"Average token length: {average_token_length:.2f}")
-
-
-# In[24]:
+# Display the results
+print(f"Maximum token length: {max_length}")
+print(f"Next maximum token length: {next_max_token_length}")
+print(f"Average token length: {average_token_length:.2f}")
 
 
-train_df = df[df['split'] == 'train'].drop(columns=['split'])
-
-test_df = df[df['split'] == 'test'].drop(columns=['split'])
- 
+# In[50]:
 
 
-# In[ ]:
+min(df['token_length'])
 
 
+# In[51]:
 
 
+fdf = df[df['token_length'] == 2]
 
-# In[25]:
+
+# In[52]:
+
+
+fdf
+
+
+# In[53]:
+
+
+df = df[df['token_length'] >= 5]
+
+
+# In[54]:
+
+
+df.shape
+
+
+# In[55]:
 
 
 # %%
@@ -292,6 +248,12 @@ def tokenize_and_format(examples):
     tokenized_inputs['label'] = list(map(int, examples['target']))
     return tokenized_inputs
 
+
+
+
+# In[56]:
+
+
 # Convert pandas DataFrame to Hugging Face's Dataset
 train_dataset = Dataset.from_pandas(train_df)
 eval_dataset = Dataset.from_pandas(val_df) 
@@ -303,9 +265,7 @@ eval_dataset = eval_dataset.map(tokenize_and_format, batched=True,batch_size=16)
 test_dataset = test_dataset.map(tokenize_and_format, batched=True,batch_size=16)
 
 
-
-
-# In[26]:
+# In[57]:
 
 
 # %%
@@ -327,24 +287,24 @@ def compute_metrics(pred):
 
 
 # %%
+ 
+
 
 # %%
- 
 
 training_args = TrainingArguments(
     output_dir="./results",
     evaluation_strategy="epoch",  # Use 'epoch' to evaluate at the end of each epoch
     save_strategy="epoch",  # Also use 'epoch' to save at the end of each epoch
     learning_rate=2e-5,
-    per_device_train_batch_size=8,
-    per_device_eval_batch_size=8,
+    per_device_train_batch_size=32,
+    per_device_eval_batch_size=32,
     num_train_epochs=3,
     weight_decay=0.01,
     load_best_model_at_end=True,  # Load the best model at the end of training based on metric
     metric_for_best_model='f1',  # Define the metric for evaluating the best model
     logging_dir='./logs',
     logging_steps=10,
-    report_to=[] 
 )
 
 
@@ -359,18 +319,19 @@ trainer = Trainer(
     tokenizer=tokenizer
 )
 
-# Start training
+ 
+
+
 trainer.train()
 
- 
- 
+
+# %%
 
 
+# In[58]:
 
-# In[ ]:
 
-
-save_directory = saveDIR
+save_directory =  saveDIR
  
 
 # Save the model
@@ -379,12 +340,13 @@ model.save_pretrained(save_directory)
 # Save the tokenizer (optional, but recommended)
 tokenizer.save_pretrained(save_directory)
 
+ 
 
-# In[ ]:
+
+# In[60]:
 
 
 # %%
-from colorama import Fore, Style
 
 
 # %% [markdown]
@@ -407,21 +369,18 @@ report = classification_report(
     target_names=df['label'].unique() , # Adjust this line as per your dataset
     digits=4
 )
-print(Fore.CYAN,"keywords class evaluation detection RESULTS")
+print(Fore.CYAN,"this is for keywords, The EVAL DATASET")
 print(report)
 
 
+
+# In[61]:
+
+
 # %% [markdown]
-# skyline
-
-# %%
-
-
-# In[ ]:
 
 
 # %%
-print(Fore.RED +"TEST DATA IS OUR SKYLINE RESULT")
  
 results = trainer.evaluate()
 
@@ -441,4 +400,14 @@ report = classification_report(
 )
 
 print(report)
+print(Fore.RED +"TEST DATA IS OUR SKYLINE RESULT")
+
+
+# %%
+ 
+
+
+
+
+
 

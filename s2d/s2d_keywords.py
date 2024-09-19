@@ -1,14 +1,26 @@
-# %%
- 
-ngram_length = 3
-dstype = 'cc' 
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[73]:
+
+
+ngram_length = 1
+dstype = 's2d' 
 mname = 'debertaV3'
 
-# %%
+
+# In[74]:
+
+
 from colorama import Fore, Style
+
 import os
 
-# %%
+
+# In[75]:
+
+
+# Create the directory, ignoring if it already exists
 path = f"/home/bhairavi/om/om3/{dstype}/{ngram_length}grams_{mname}/"
 os.makedirs(path, exist_ok=True)
 
@@ -22,16 +34,19 @@ print(Fore.YELLOW,"csv_filePATH--->",file_path)
 filepath_full = path + f'{dstype}_{ngram_length}top5.csv' 
 print(Fore.YELLOW,"QUE_filePATH--->",filepath_full)
  
-
+ 
  
 modelpath = f"/home/bhairavi/om/om5/{dstype}/{mname}_{dstype}"
 
+ 
+
 print(Fore.YELLOW,'modelPATH--->',modelpath)
-
-# %%
-
  
- 
+
+
+# In[76]:
+
+
 import torch  
 
 torch.cuda.empty_cache()  
@@ -56,32 +71,17 @@ import numpy as np
   
 
 
-# %%
+# In[77]:
 
 
 # %%
-df = pd.read_csv('/home/bhairavi/om/om5/cc/cc.csv')
+df = pd.read_csv('/home/bhairavi/om/om4/s2d/Symptom2Disease.csv')
 
+
+
+ 
 # %%
-
-# %%
-
-# %%
-df.sample(5)
-
-
-# %%
-
-
-# %%
-df.drop(columns=["Unnamed: 0"], inplace=True)
-df.columns = (['label','text','target'])
-
-
-# %%
-
-
-# %%
+ 
 
 # %%
 from sklearn.preprocessing import LabelEncoder
@@ -93,28 +93,21 @@ df['target'] = le.fit_transform(df['label'])
 # %%
 
 
-
-# %%
-
-
-
-# %%
+ 
 
 # %%
 numlabel = df['target'].nunique()
 numlabel
 
 
-# %%
-df.columns
-
-# %%
-numlabel = df['target'].nunique()
-numlabel
+# In[78]:
 
 
-# %%
-df['text'] = df['text'].apply(lambda x: x[:512])
+max_length  =  512
+
+
+# In[79]:
+
 
 # %%
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -128,8 +121,7 @@ model = AutoModelForSequenceClassification.from_pretrained(modelpath, num_labels
 # Move the model to the specified device
 model.to(device)
 
-
-max_length = 512
+ 
 
 # %%
 
@@ -167,9 +159,6 @@ eval_dataset = eval_dataset.map(tokenize_and_format, batched=True,batch_size=16)
 test_dataset = test_dataset.map(tokenize_and_format, batched=True,batch_size=16)
 
 
-
-
-# %%
 
 
 # %%
@@ -228,9 +217,9 @@ trainer = Trainer(
 
 
 
-# %%
+# In[80]:
 
- 
+
 io=   pd.DataFrame(eval_dataset)
  
 batch_size = 4
@@ -287,8 +276,8 @@ io['predicted_label'] = all_predictions
  
 
 
-# %%
- 
+# In[81]:
+
 
 # Set device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -301,12 +290,16 @@ top_n = 5
      
 
 
-# %%
+# In[82]:
+
+
 io[f'significant_{ngram_length}grams'] = None
 io[f'{ngram_length}gram_weights'] = None 
 
 def occlusion(text, model, tokenizer, label, ngram_length, device):
- 
+    """
+    Perform occlusion on the text and return n-gram importances based on the specified n-gram length.
+    """
     inputs = tokenizer(text, return_tensors='pt').to(device)
     original_logits = model(**inputs).logits
     original_probs = F.softmax(original_logits, dim=-1)
@@ -338,7 +331,8 @@ def select_top_ngrams(ngram_importances, top_n=top_n):
     sorted_ngrams = sorted(ngram_importances.items(), key=lambda item: item[1], reverse=True)
     top_ngrams = sorted_ngrams[:top_n]
     return top_ngrams
- 
+
+# Assuming 'io' DataFrame exists and is properly formatted
 for index, row in io.iterrows():
     if row['target'] == row['predicted_label']:  # Only proceed if prediction matches the label
 
@@ -352,29 +346,44 @@ for index, row in io.iterrows():
         io.at[index, f'{ngram_length}gram_weights'] = [weight for _, weight in top_ngrams]  # Rename this column to 'ngram_weights'
 
 
-# %%
-                                       
+# In[83]:
+
+
 io.to_csv(filepath_full,index= False)
-
-
-# %%
-io = pd.read_csv(filepath_full)
-
-# %%
 
 io[0:4]
 
-# %%
+
+# In[84]:
+
+
 io[f'significant_{ngram_length}grams'][0]
+ 
+ 
+
+
+# In[85]:
+
 
 # %%
+
+ 
 io['text'][0], io[f'significant_{ngram_length}grams'][0]
 
+
+
+# In[86]:
+
+
+# %%
 
 # %%
 io['label'] = le.inverse_transform(io['target'])
 
-# %%
+ 
+
+
+# In[87]:
 
 
 # %%
@@ -383,7 +392,9 @@ io= io.dropna()
 # %%
 
 
-# %%
+# In[88]:
+
+
 # label_to_words = io.groupby('label')['significant_words'].apply(lambda words: set().union(*words)).to_dict()
 label_to_words = io.groupby('label')[f'significant_{ngram_length}grams'].apply(lambda words: set().union(*words)).to_dict()
 # label_to_words = io.groupby('label')['significant_5grams'].apply(lambda words: set().union(*words)).to_dict()
@@ -392,11 +403,7 @@ print(label_to_words)
 
 
 
-# %%
-
-# %%
-
-
+# In[89]:
 
 
 label_to_words_and_weights = {}
@@ -417,10 +424,9 @@ for label, group in io.groupby('label'):
 # Display the dictionary with labels, words, and their maximum weights
 print(label_to_words_and_weights)
 
- 
 
+# In[90]:
 
-# %%
 
 # %%
 
@@ -433,7 +439,8 @@ len(list(label_to_words['Acne']))
 
 
 
-# %%
+# In[91]:
+
 
 # %%
 
@@ -442,7 +449,8 @@ len(label_to_words)
 
 
 
-# %%
+# In[92]:
+
 
 # %%
 
@@ -452,7 +460,8 @@ label_to_words
  
 
 
-# %%
+# In[93]:
+
 
 test_data = pd.DataFrame(test_dataset)
 
@@ -483,7 +492,8 @@ test_data['first_half'][0:4] , test_data['second_half'][0:4]
 # %%
 
 
-# %%
+# In[94]:
+
 
 # %%
 tdf = test_data[['first_half', 'label']]
@@ -514,7 +524,9 @@ print(report)
 
 
 
-# %%
+# In[95]:
+
+
 # Move model to the specified device
 model = model.to(device)
 
@@ -587,7 +599,7 @@ test_data['significant_words'] = test_data['top3_predicted_labels'].apply(map_si
 test_data
 
 
-# %%
+# In[96]:
 
 
 # %%
@@ -596,7 +608,8 @@ test_data
 test_data.to_csv(file_path,index= False)
 
 
-# %%
+# In[97]:
+
 
 # %%
 df = test_data
@@ -607,7 +620,7 @@ df['significant_words'][0]
  
 
 
-# %%
+# In[98]:
 
 
 # %%
@@ -616,12 +629,15 @@ df.rename(columns={'significant_words': 'significant_words_weights'}, inplace=Tr
  
 
 
-# %%
+# In[99]:
+
+
 # %%
 len(df['significant_words_weights'][0])
 
 
-# %%
+# In[100]:
+
 
 # %%
 df['significant_words_weights'][0][0]  
@@ -629,7 +645,9 @@ df['significant_words_weights'][0][0]
 # %%
 
 
-# %%
+# In[101]:
+
+
 top_n = 15  # The number of top words you want to select
 
 def filter_top_n_words(list_of_dicts):
@@ -655,7 +673,9 @@ def filter_top_n_words(list_of_dicts):
 df['significant_words'] = df['significant_words_weights'].apply(filter_top_n_words)
 
 
-# %%
+
+# In[102]:
+
 
 # %%
 df['significant_words'][0][0]  , df['significant_words'][0][1], df['significant_words'][0][2]
@@ -664,7 +684,8 @@ df['significant_words'][0][0]  , df['significant_words'][0][1], df['significant_
 # %%
 
 
-# %%
+# In[103]:
+
 
 # %%
 df.shape
@@ -673,20 +694,24 @@ df.shape
 # %%
 
 
-# %%
- 
+# In[104]:
+
+
 df['significant_words'][0][0]  , df['significant_words_weights'][0][0] 
 
 
 
-# %%
+# In[105]:
+
 
 # %%
 # %%
 df = df.dropna(ignore_index =True)
 
 
-# %%
+# In[106]:
+
+
 # %%
 df.to_csv(file_path ,index= False)
 
@@ -694,12 +719,11 @@ df.to_csv(file_path ,index= False)
 df.columns
 
 
-# %%
+# In[107]:
+
 
 # %%
 len(df['significant_words'][0]),len(df['significant_words'][0][0])
 
 # %
-
-
 
